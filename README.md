@@ -1,8 +1,8 @@
 <h1 align="center">
-Remove ASUS Bloat & Leftovers
+Remove ASUS Bloatware & Leftovers
 </h1>
 
-A compact toolkit to **remove ASUS software and leftovers** (Armoury Crate, ASUS Update, Link, Aura/AAC, MyASUS, etc.).  
+A compact toolkit to **remove ASUS software and leftover components** (Armoury Crate, ASUS Update, Link, Aura/AAC, MyASUS, etc.).  
 It kills processes, disables services, removes scheduled tasks, deletes leftover folders, and cleans registry entries.  
 Optional modules also handle **Package Cache** leftovers and **Microsoft Store (UWP + provisioned)** ASUS apps.
 
@@ -43,7 +43,7 @@ Optional modules also handle **Package Cache** leftovers and **Microsoft Store (
 Run:
 
 ```bat
-RUN_disable_edgeupdate.bat
+RUN_remove_asus_bloat.bat
 ```
 
 The script will:
