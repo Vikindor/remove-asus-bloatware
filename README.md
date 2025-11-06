@@ -2,13 +2,13 @@
 Remove ASUS Bloat & Leftovers
 </h1>
 
-<p align="center">
-  <img src="media/armoury_crate_installer.jpg" alt="PowerShell console screenshot" title="PowerShell console"/>
-</p>
-
 A compact toolkit to **remove ASUS software and leftovers** (Armoury Crate, ASUS Update, Link, Aura/AAC, MyASUS, etc.).  
 It kills processes, disables services, removes scheduled tasks, deletes leftover folders, and cleans registry entries.  
 Optional modules also handle **Package Cache** leftovers and **Microsoft Store (UWP + provisioned)** ASUS apps.
+
+<p align="center">
+  <img src="media/armoury_crate_installer.jpg" width="75%" alt="PowerShell console screenshot" title="PowerShell console"/>
+</p>
 
 ## ✨ Features
 
@@ -78,5 +78,5 @@ The script will:
 ⚠️ Also note that most **ASUS devices (mice, keyboards, headsets, etc.) contain a built-in Armoury Crate installer** or trigger automatic download of the installer when connected.
 In that case, the software will reappear every time the device is plugged in — simply **run the cleanup script again** after disconnecting or reinstalling the device.
 
-**Q:** Can I undo the cleanup?
+**Q:** Can I undo the cleanup?  
 **A:** No. This script **deletes** ASUS components rather than toggling them. If you need ASUS tools later, reinstall them from official sources.
