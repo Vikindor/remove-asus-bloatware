@@ -67,10 +67,10 @@ The script will:
 
 ## ❓ Troubleshooting
 
-**Q:** I see `SKIP/INFO: cannot query provisioned packages`.
+**Q:** I see `SKIP/INFO: cannot query provisioned packages`.  
 **A:** Your Windows version/permissions may not expose them. It’s informational; core cleanup still runs.
 
-**Q:** `ERROR: Access is denied` on services/registry/folders.
+**Q:** `ERROR: Access is denied` on services/registry/folders.  
 **A:** You’re likely not elevated. Re‑run PowerShell **as Administrator**.
 
 **Q:** Some ASUS apps reappear after a reboot.  
