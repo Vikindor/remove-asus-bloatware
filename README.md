@@ -2,9 +2,9 @@
 Remove ASUS Bloatware & Leftovers
 </h1>
 
-A compact toolkit to **remove ASUS software and leftover components** (Armoury Crate, ASUS Update, Link, Aura/AAC, MyASUS, etc.).  
-It kills processes, disables services, removes scheduled tasks, deletes leftover folders, and cleans registry entries.  
-Optional modules also handle **Package Cache** leftovers and **Microsoft Store (UWP + provisioned)** ASUS apps.
+A compact toolkit to **remove ASUS software and leftover components** (Armoury Crate, ASUS Update, Link, Aura/AAC, MyASUS, etc.).
+
+⚠️ **The script does NOT run uninstallers for installed ASUS apps — you need to remove them manually.** It only cleans up the leftover junk: kills processes, disables services, removes scheduled tasks, deletes leftover folders, and cleans registry entries. Optional modules also handle **Package Cache** leftovers and **Microsoft Store (UWP + provisioned)** ASUS apps.
 
 <p align="center">
   <img src="media/armoury_crate_installer.jpg" width="75%" alt="PowerShell console screenshot" title="PowerShell console"/>
