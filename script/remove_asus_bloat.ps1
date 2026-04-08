@@ -1,5 +1,5 @@
 # =========================================================
-# remove_asus_bloat.ps1 v1.0.1
+# remove_asus_bloat.ps1 v1.0.2
 # Created by Vikindor (https://vikindor.github.io/)
 # Clean ASUS software remnants (Armoury Crate, ASUS Update, Link, Aura/AAC, MyASUS, etc.)
 # - Kill processes
@@ -12,6 +12,28 @@
 # =========================================================
 
 $ErrorActionPreference = 'Stop'
+$script:HadErrors = $false
+
+function Test-IsMissingError {
+    param(
+        [System.Management.Automation.ErrorRecord]$ErrorRecord
+    )
+
+    $message = $ErrorRecord.Exception.Message
+    $fullyQualifiedErrorId = $ErrorRecord.FullyQualifiedErrorId
+    $category = $ErrorRecord.CategoryInfo.Category
+
+    if (
+        $ErrorRecord.Exception -is [System.Management.Automation.ItemNotFoundException] -or
+        $category -eq [System.Management.Automation.ErrorCategory]::ObjectNotFound -or
+        $fullyQualifiedErrorId -match 'ItemNotFound|PathNotFound|ObjectNotFound|NoMatching|NotFound|Missing' -or
+        $message -match '(?i)\b(not\s+found|cannot\s+find|does\s+not\s+exist|no\s+such)\b'
+    ) {
+        return $true
+    }
+
+    return $false
+}
 
 function Try-Run {
     param(
@@ -24,24 +46,17 @@ function Try-Run {
         Write-Host "OK: $Label" -ForegroundColor Green
     } catch {
         $msg = $_.Exception.Message
-        if ($WarnOKIfMissing) {
+        if ($WarnOKIfMissing -and (Test-IsMissingError $_)) {
             Write-Host "SKIP/INFO: $Label ($msg)" -ForegroundColor Yellow
         } else {
+            $script:HadErrors = $true
             Write-Host "ERROR: $Label ($msg)" -ForegroundColor Red
         }
     }
 }
-function Do-Run {
-    param(
-        [string]$Label,
-        [ScriptBlock]$Action,
-        [switch]$WarnOKIfMissing
-    )    
-        Try-Run -Label $Label -Action $Action -WarnOKIfMissing:$WarnOKIfMissing    
-}
 
 # [0] Warn if 32-bit PS on 64-bit OS
-if ($env:PROCESSOR_ARCHITECTURE -ne 'AMD64' -and [Environment]::Is64BitOperatingSystem) {
+if ([Environment]::Is64BitOperatingSystem -and -not [Environment]::Is64BitProcess) {
   Write-Host "WARN: 32-bit PowerShell detected on 64-bit OS. Prefer a 64-bit host (PowerShell 7 x64 or Windows PowerShell x64)." -ForegroundColor Yellow
 }
 
@@ -57,10 +72,10 @@ $procs = Get-Process -ErrorAction SilentlyContinue | Where-Object {
 }
 if ($procs) {
   foreach ($p in $procs) {
-    Do-Run "terminate process $($p.Name) (PID $($p.Id))" { Stop-Process -Id $p.Id -Force }
+    Try-Run "Terminate process $($p.Name) (PID $($p.Id))" { Stop-Process -Id $p.Id -Force }
   }
 } else {
-  Write-Host "SKIP/INFO: no ASUS-like processes running" -ForegroundColor Yellow
+  Write-Host "SKIP/INFO: No ASUS-like processes running" -ForegroundColor Yellow
 }
 
 # ---------------------------------------------------------
@@ -76,11 +91,11 @@ $svcNames = @(
 foreach ($s in $svcNames) {
   $svc = Get-Service -Name $s -ErrorAction SilentlyContinue
   if ($null -ne $svc) {
-    Do-Run "stop service $s" { Stop-Service $s -Force } -WarnOKIfMissing
-    Do-Run "disable service $s" { Set-Service $s -StartupType Disabled }
-    Do-Run "delete service $s" { sc.exe delete "$s" | Out-Null }
+    Try-Run "Stop service $s" { Stop-Service $s -Force } -WarnOKIfMissing
+    Try-Run "Disable service $s" { Set-Service $s -StartupType Disabled }
+    Try-Run "Delete service $s" { sc.exe delete "$s" | Out-Null }
   } else {
-    Write-Host "SKIP/INFO: service not found $s" -ForegroundColor Yellow
+    Write-Host "SKIP/INFO: Service not found $s" -ForegroundColor Yellow
   }
 }
 
@@ -93,7 +108,8 @@ $asusNameRx = '(?i)(Armoury|Crate|Aura|Aac(Audio|VGA|LSvc)?|MyASUS|Asus(Update|C
 
 $allTasks = @()
 try { $allTasks = Get-ScheduledTask -ErrorAction Stop } catch {
-  Write-Host "ERROR: cannot enumerate scheduled tasks ($($_.Exception.Message))" -ForegroundColor Red
+  $script:HadErrors = $true
+  Write-Host "ERROR: Enumerate scheduled tasks ($($_.Exception.Message))" -ForegroundColor Red
 }
 
 $targets = $allTasks | Where-Object {
@@ -106,14 +122,14 @@ if ($targets) {
   foreach ($t in $targets) {
     $exists = Get-ScheduledTask -TaskPath $t.TaskPath -TaskName $t.TaskName -ErrorAction SilentlyContinue
     if (-not $exists) {
-      Write-Host "SKIP/INFO: task already gone $($t.TaskPath)$($t.TaskName)" -ForegroundColor Yellow
+      Write-Host "SKIP/INFO: Task already gone $($t.TaskPath)$($t.TaskName)" -ForegroundColor Yellow
       continue
     }
-    Do-Run "stop task $($t.TaskPath)$($t.TaskName)" { Stop-ScheduledTask -TaskName $t.TaskName -TaskPath $t.TaskPath } -WarnOKIfMissing
-    Do-Run "delete task $($t.TaskPath)$($t.TaskName)" { Unregister-ScheduledTask -TaskName $t.TaskName -TaskPath $t.TaskPath -Confirm:$false }
+    Try-Run "Stop task $($t.TaskPath)$($t.TaskName)" { Stop-ScheduledTask -TaskName $t.TaskName -TaskPath $t.TaskPath } -WarnOKIfMissing
+    Try-Run "Delete task $($t.TaskPath)$($t.TaskName)" { Unregister-ScheduledTask -TaskName $t.TaskName -TaskPath $t.TaskPath -Confirm:$false }
   }
 } else {
-  Write-Host "SKIP/INFO: no ASUS-like scheduled tasks found (safe filter)" -ForegroundColor Yellow
+  Write-Host "SKIP/INFO: No ASUS-like scheduled tasks found (safe filter)" -ForegroundColor Yellow
 }
 
 # ---------------------------------------------------------
@@ -131,12 +147,12 @@ $folders = @(
 
 if ($folders.Count -gt 0) {
   foreach ($path in $folders) {
-    Do-Run "take ownership $path" { Start-Process -FilePath takeown.exe -ArgumentList @('/f',"`"$path`"","/r","/d","y") -Wait -NoNewWindow } -WarnOKIfMissing
-    Do-Run "grant Administrators:F $path" { Start-Process -FilePath icacls.exe -ArgumentList @("`"$path`"","/grant","Administrators:F","/t","/c") -Wait -NoNewWindow }
-    Do-Run "remove folder $path" { Remove-Item -LiteralPath $path -Recurse -Force }
+    Try-Run "Take ownership $path" { Start-Process -FilePath takeown.exe -ArgumentList @('/f',"`"$path`"","/r","/d","y") -Wait -NoNewWindow } -WarnOKIfMissing
+    Try-Run "Grant Administrators:F $path" { Start-Process -FilePath icacls.exe -ArgumentList @("`"$path`"","/grant","Administrators:F","/t","/c") -Wait -NoNewWindow }
+    Try-Run "Remove folder $path" { Remove-Item -LiteralPath $path -Recurse -Force }
   }
 } else {
-  Write-Host "SKIP/INFO: no ASUS folders found" -ForegroundColor Yellow
+  Write-Host "SKIP/INFO: No ASUS folders found" -ForegroundColor Yellow
 }
 
 # ---------------------------------------------------------
@@ -148,9 +164,9 @@ $regKeys = @(
 )
 foreach ($rk in $regKeys) {
   if (Test-Path $rk) {
-    Do-Run "delete $rk" { Remove-Item -Path $rk -Recurse -Force }
+    Try-Run "Delete $rk" { Remove-Item -Path $rk -Recurse -Force }
   } else {
-    Write-Host "SKIP/INFO: registry key not found $rk" -ForegroundColor Yellow
+    Write-Host "SKIP/INFO: Registry key not found $rk" -ForegroundColor Yellow
   }
 }
 
@@ -166,7 +182,7 @@ foreach ($h in $runHives) {
       $name = $prop.Name
       $val  = [string]$prop.Value
       if ($name -and $val -and ($val -match $rx)) {
-        Do-Run "delete Run value '$name' in $h" { Remove-ItemProperty -Path $h -Name $name -Force }
+        Try-Run "Delete Run value '$name' in $h" { Remove-ItemProperty -Path $h -Name $name -Force }
       }
     }
   }
@@ -174,6 +190,11 @@ foreach ($h in $runHives) {
 
 # ---------------------------------------------------------
 Write-Host "[6/6] Base cleanup complete." -ForegroundColor Cyan
+if ($script:HadErrors) {
+  Write-Host "Completed with errors. Review the messages above before assuming ASUS software was fully removed." -ForegroundColor Yellow
+} else {
+  Write-Host "Done. Base cleanup completed successfully." -ForegroundColor Green
+}
 
 function Invoke-PackageCacheCleanup {
   Write-Host "`n[OPTION] Package Cache cleanup (ASUS-only)..." -ForegroundColor Cyan
@@ -205,12 +226,12 @@ function Invoke-PackageCacheCleanup {
 
   $targets = $targets | Sort-Object -Unique
   if (-not $targets -or $targets.Count -eq 0) {
-    Write-Host "SKIP/INFO: no ASUS-related entries in Package Cache" -ForegroundColor Yellow
+    Write-Host "SKIP/INFO: No ASUS-related entries in Package Cache" -ForegroundColor Yellow
     return
   }
 
   foreach ($path in $targets) {
-    Do-Run "remove Package Cache folder $path" { Remove-Item -LiteralPath $path -Recurse -Force }
+    Try-Run "Remove Package Cache folder $path" { Remove-Item -LiteralPath $path -Recurse -Force }
   }
 }
 
@@ -222,28 +243,34 @@ function Invoke-StoreAppsCleanup {
   }
   if ($pkgs) {
     foreach ($p in $pkgs) {
-      Do-Run "remove AppX $($p.Name) ($($p.PackageFullName))" {
+      Try-Run "Remove AppX $($p.Name) ($($p.PackageFullName))" {
         try { Remove-AppxPackage -Package $p.PackageFullName -AllUsers } catch { Remove-AppxPackage -Package $p.PackageFullName }
       } -WarnOKIfMissing
     }
   } else {
-    Write-Host "SKIP/INFO: no ASUS AppX packages found" -ForegroundColor Yellow
+    Write-Host "SKIP/INFO: No ASUS AppX packages found" -ForegroundColor Yellow
   }
 
   try {
     $prov = Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -match '(?i)(ASUS|ASUSTeK)' }
     foreach ($pp in $prov) {
-      Do-Run "remove provisioned package $($pp.DisplayName)" { Remove-AppxProvisionedPackage -Online -PackageName $pp.PackageName | Out-Null }
+      Try-Run "Remove provisioned package $($pp.DisplayName)" { Remove-AppxProvisionedPackage -Online -PackageName $pp.PackageName | Out-Null }
     }
   } catch {
-    Write-Host "SKIP/INFO: cannot query provisioned packages (requires admin/Win10+): $($_.Exception.Message)" -ForegroundColor Yellow
+    $msg = $_.Exception.Message
+    if (Test-IsMissingError $_) {
+      Write-Host "SKIP/INFO: Query provisioned packages ($msg)" -ForegroundColor Yellow
+    } else {
+      $script:HadErrors = $true
+      Write-Host "ERROR: Query provisioned packages ($msg)" -ForegroundColor Red
+    }
   }
 
   $lap = Join-Path $env:LOCALAPPDATA 'Packages'
   if (Test-Path $lap) {
     $asusDirs = Get-ChildItem -LiteralPath $lap -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '(?i)(ASUS|ASUSTeK)' }
     foreach ($d in $asusDirs) {
-      Do-Run "remove Packages dir $($d.FullName)" { Remove-Item -LiteralPath $d.FullName -Recurse -Force }
+      Try-Run "Remove Packages dir $($d.FullName)" { Remove-Item -LiteralPath $d.FullName -Recurse -Force }
     }
   }
 }
@@ -262,6 +289,6 @@ while ($true) {
     '2' { Invoke-StoreAppsCleanup }
     '0' { return }
 	''  { continue } # empty input: just reprint menu, without warning
-    default { Write-Host "SKIP/INFO: unknown option '$choice'" -ForegroundColor Yellow }
+    default { Write-Host "SKIP/INFO: Unknown option '$choice'" -ForegroundColor Yellow }
   }
 }
