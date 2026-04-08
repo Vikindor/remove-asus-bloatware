@@ -1,5 +1,5 @@
 # =========================================================
-# remove_asus_bloat.ps1 v1.0
+# remove_asus_bloat.ps1 v1.0.1
 # Created by Vikindor (https://vikindor.github.io/)
 # Clean ASUS software remnants (Armoury Crate, ASUS Update, Link, Aura/AAC, MyASUS, etc.)
 # - Kill processes
