@@ -1,6 +1,6 @@
 @echo off
 :: =========================================================
-:: RUN_remove_asus_bloat.bat v1.0.2
+:: RUN_remove_asus_bloat.bat v1.0.3
 :: Run remove_asus_bloat.ps1 with elevation and correct host
 :: =========================================================
 

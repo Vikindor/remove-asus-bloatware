@@ -1,5 +1,5 @@
 # =========================================================
-# remove_asus_bloat.ps1 v1.0.2
+# remove_asus_bloat.ps1 v1.0.3
 # Created by Vikindor (https://vikindor.github.io/)
 # Clean ASUS software remnants (Armoury Crate, ASUS Update, Link, Aura/AAC, MyASUS, etc.)
 # - Kill processes
@@ -55,6 +55,19 @@ function Try-Run {
     }
 }
 
+function Invoke-NativeCommandChecked {
+    param(
+        [string]$FilePath,
+        [string[]]$Arguments
+    )
+
+    & $FilePath @Arguments | Out-Null
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) {
+        throw "$FilePath exited with code $exitCode."
+    }
+}
+
 # [0] Warn if 32-bit PS on 64-bit OS
 if ([Environment]::Is64BitOperatingSystem -and -not [Environment]::Is64BitProcess) {
   Write-Host "WARN: 32-bit PowerShell detected on 64-bit OS. Prefer a 64-bit host (PowerShell 7 x64 or Windows PowerShell x64)." -ForegroundColor Yellow
@@ -93,7 +106,7 @@ foreach ($s in $svcNames) {
   if ($null -ne $svc) {
     Try-Run "Stop service $s" { Stop-Service $s -Force } -WarnOKIfMissing
     Try-Run "Disable service $s" { Set-Service $s -StartupType Disabled }
-    Try-Run "Delete service $s" { sc.exe delete "$s" | Out-Null }
+    Try-Run "Delete service $s" { Invoke-NativeCommandChecked -FilePath 'sc.exe' -Arguments @('delete', $s) }
   } else {
     Write-Host "SKIP/INFO: Service not found $s" -ForegroundColor Yellow
   }
@@ -147,8 +160,8 @@ $folders = @(
 
 if ($folders.Count -gt 0) {
   foreach ($path in $folders) {
-    Try-Run "Take ownership $path" { Start-Process -FilePath takeown.exe -ArgumentList @('/f',"`"$path`"","/r","/d","y") -Wait -NoNewWindow } -WarnOKIfMissing
-    Try-Run "Grant Administrators:F $path" { Start-Process -FilePath icacls.exe -ArgumentList @("`"$path`"","/grant","Administrators:F","/t","/c") -Wait -NoNewWindow }
+    Try-Run "Take ownership $path" { Invoke-NativeCommandChecked -FilePath 'takeown.exe' -Arguments @('/f', $path, '/r', '/d', 'y') } -WarnOKIfMissing
+    Try-Run "Grant Administrators:F $path" { Invoke-NativeCommandChecked -FilePath 'icacls.exe' -Arguments @($path, '/grant', 'Administrators:F', '/t', '/c') }
     Try-Run "Remove folder $path" { Remove-Item -LiteralPath $path -Recurse -Force }
   }
 } else {
