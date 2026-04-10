@@ -1,5 +1,5 @@
 # =========================================================
-# remove_asus_bloat.ps1 v1.0.3
+# remove_asus_bloat.ps1 v1.0.4
 # Created by Vikindor (https://vikindor.github.io/)
 # Clean ASUS software remnants (Armoury Crate, ASUS Update, Link, Aura/AAC, MyASUS, etc.)
 # - Kill processes
@@ -288,8 +288,18 @@ function Invoke-StoreAppsCleanup {
   }
 }
 
-Write-Host "`nDone. It is recommended that you restart your PC." -ForegroundColor Cyan
-Write-Host "`Choose optional cleanup or press 0 to exit." -ForegroundColor Cyan
+function Exit-WithSummary {
+  if ($script:HadErrors) {
+    Write-Host "`nCompleted with errors. Review the messages above before assuming ASUS software was fully removed." -ForegroundColor Yellow
+    exit 1
+  }
+
+  Write-Host "`nDone. ASUS cleanup completed successfully. It is recommended that you restart your PC." -ForegroundColor Green
+  exit 0
+}
+
+Write-Host "`nBase cleanup complete. Optional cleanup is available below." -ForegroundColor Cyan
+Write-Host "Choose optional cleanup or press 0 to exit." -ForegroundColor Cyan
 
 while ($true) {
   Write-Host "`n=== Optional cleanup ===" -ForegroundColor Cyan
@@ -300,7 +310,7 @@ while ($true) {
   switch ($choice) {
     '1' { Invoke-PackageCacheCleanup }
     '2' { Invoke-StoreAppsCleanup }
-    '0' { return }
+    '0' { Exit-WithSummary }
 	''  { continue } # empty input: just reprint menu, without warning
     default { Write-Host "SKIP/INFO: Unknown option '$choice'" -ForegroundColor Yellow }
   }
