@@ -1,6 +1,8 @@
 # =========================================================
 # remove_asus_bloat.ps1 v1.0.8
 # Created by Vikindor (https://vikindor.github.io/)
+# Source: https://github.com/Vikindor/remove-asus-bloatware
+# Issues: https://github.com/Vikindor/remove-asus-bloatware/issues
 # Clean ASUS software remnants (Armoury Crate, ASUS Update, Link, Aura/AAC, MyASUS, etc.)
 # - Kill processes
 # - Stop/disable/delete services
