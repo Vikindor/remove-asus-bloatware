@@ -297,7 +297,7 @@ function Exit-WithSummary {
   exit 0
 }
 
-Write-Host "Choose optional cleanup or press 0 to exit." -ForegroundColor Cyan
+Write-Host "`nChoose optional cleanup or press 0 to exit." -ForegroundColor Cyan
 
 while ($true) {
   Write-Host "`n=== Optional cleanup ===" -ForegroundColor Cyan
