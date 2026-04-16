@@ -1,5 +1,5 @@
 # =========================================================
-# remove_asus_bloat.ps1 v1.0.5
+# remove_asus_bloat.ps1 v1.0.6
 # Created by Vikindor (https://vikindor.github.io/)
 # Clean ASUS software remnants (Armoury Crate, ASUS Update, Link, Aura/AAC, MyASUS, etc.)
 # - Kill processes
@@ -169,7 +169,7 @@ if ($folders.Count -gt 0) {
 }
 
 # ---------------------------------------------------------
-Write-Host "[5/6] Clean ASUS registry keys and autostarts..." -ForegroundColor Cyan
+Write-Host "[5/5] Clean ASUS registry keys and autostarts..." -ForegroundColor Cyan
 $regKeys = @(
   'HKLM:\SOFTWARE\ASUS',
   'HKLM:\SOFTWARE\WOW6432Node\ASUS',
