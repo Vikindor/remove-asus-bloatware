@@ -1,5 +1,5 @@
 # =========================================================
-# remove_asus_bloat.ps1 v1.0.7
+# remove_asus_bloat.ps1 v1.0.8
 # Created by Vikindor (https://vikindor.github.io/)
 # Clean ASUS software remnants (Armoury Crate, ASUS Update, Link, Aura/AAC, MyASUS, etc.)
 # - Kill processes
@@ -68,10 +68,25 @@ function Invoke-NativeCommandChecked {
     }
 }
 
+function Get-UserProfileDirectories {
+    $usersRoot = Join-Path $env:SystemDrive 'Users'
+    if (-not (Test-Path $usersRoot)) {
+        return @()
+    }
+
+    $skipNames = @('All Users', 'Default', 'Default User', 'Public', 'defaultuser0')
+    return @(Get-ChildItem -LiteralPath $usersRoot -Directory -ErrorAction SilentlyContinue | Where-Object {
+        $_.Name -notin $skipNames
+    } | Select-Object -ExpandProperty FullName)
+}
+
 # [0] Warn if 32-bit PS on 64-bit OS
 if ([Environment]::Is64BitOperatingSystem -and -not [Environment]::Is64BitProcess) {
   Write-Host "WARN: 32-bit PowerShell detected on 64-bit OS. Prefer a 64-bit host (PowerShell 7 x64 or Windows PowerShell x64)." -ForegroundColor Yellow
 }
+
+$asusRegex = '(?i)(ASUS|ASUSTeK|Armoury|Crate|Aura|Aac|MyASUS|ROG)'
+$userProfiles = Get-UserProfileDirectories
 
 # ---------------------------------------------------------
 Write-Host "[1/6] Kill ASUS-related processes..." -ForegroundColor Cyan
@@ -146,7 +161,7 @@ if ($targets) {
 }
 
 # ---------------------------------------------------------
-Write-Host "[4/6] Delete ASUS folders (Program Files / ProgramData / AppData)..." -ForegroundColor Cyan
+Write-Host "[4/6] Delete ASUS paths (Program Files / ProgramData / AppData / Start Menu)..." -ForegroundColor Cyan
 $folders = @(
   "$env:ProgramFiles\ASUS",
   "$env:ProgramFiles\ASUSTeK",
@@ -154,18 +169,61 @@ $folders = @(
   "${env:ProgramFiles(x86)}\ASUSTeK",
   "$env:ProgramData\ASUS",
   "$env:ProgramData\Armoury Crate",
-  "$env:APPDATA\ASUS",
-  "$env:LOCALAPPDATA\ASUS"
+  "$env:ProgramData\ASUSTeK",
+  "$env:PUBLIC\Documents\ASUS"
 ) | Where-Object { $_ -and (Test-Path $_) } | Sort-Object -Unique
+
+foreach ($profile in $userProfiles) {
+  $folders += @(
+    (Join-Path $profile 'AppData\Roaming\ASUS'),
+    (Join-Path $profile 'AppData\Roaming\ASUSTeK'),
+    (Join-Path $profile 'AppData\Local\ASUS'),
+    (Join-Path $profile 'AppData\Local\ASUSTeK')
+  ) | Where-Object { Test-Path $_ }
+
+  $packagesRoot = Join-Path $profile 'AppData\Local\Packages'
+  if (Test-Path $packagesRoot) {
+    $folders += @(Get-ChildItem -LiteralPath $packagesRoot -Directory -ErrorAction SilentlyContinue | Where-Object {
+      $_.Name -match $asusRegex
+    } | Select-Object -ExpandProperty FullName)
+  }
+}
+
+$shortcutRoots = @(
+  (Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs'),
+  (Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs\Startup')
+)
+foreach ($profile in $userProfiles) {
+  $shortcutRoots += @(
+    (Join-Path $profile 'AppData\Roaming\Microsoft\Windows\Start Menu\Programs'),
+    (Join-Path $profile 'AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup'),
+    (Join-Path $profile 'Desktop')
+  )
+}
+
+foreach ($root in ($shortcutRoots | Sort-Object -Unique)) {
+  if (-not (Test-Path $root)) { continue }
+  $folders += @(Get-ChildItem -LiteralPath $root -Force -ErrorAction SilentlyContinue | Where-Object {
+    $_.Name -match $asusRegex
+  } | Select-Object -ExpandProperty FullName)
+}
+
+$folders = $folders | Sort-Object -Unique
 
 if ($folders.Count -gt 0) {
   foreach ($path in $folders) {
-    Try-Run "Take ownership $path" { Invoke-NativeCommandChecked -FilePath 'takeown.exe' -Arguments @('/f', $path, '/r', '/d', 'y') } -WarnOKIfMissing
-    Try-Run "Grant Administrators:F $path" { Invoke-NativeCommandChecked -FilePath 'icacls.exe' -Arguments @($path, '/grant', 'Administrators:F', '/t', '/c') }
-    Try-Run "Remove folder $path" { Remove-Item -LiteralPath $path -Recurse -Force }
+    $takeownArgs = @('/f', $path, '/d', 'y')
+    $icaclsArgs = @($path, '/grant', 'Administrators:F', '/c')
+    if (Test-Path $path -PathType Container) {
+      $takeownArgs += '/r'
+      $icaclsArgs += '/t'
+    }
+    Try-Run "Take ownership $path" { Invoke-NativeCommandChecked -FilePath 'takeown.exe' -Arguments $takeownArgs } -WarnOKIfMissing
+    Try-Run "Grant Administrators:F $path" { Invoke-NativeCommandChecked -FilePath 'icacls.exe' -Arguments $icaclsArgs }
+    Try-Run "Remove path $path" { Remove-Item -LiteralPath $path -Recurse -Force }
   }
 } else {
-  Write-Host "SKIP/INFO: No ASUS folders found" -ForegroundColor Yellow
+  Write-Host "SKIP/INFO: No ASUS paths found" -ForegroundColor Yellow
 }
 
 # ---------------------------------------------------------
@@ -175,6 +233,17 @@ $regKeys = @(
   'HKLM:\SOFTWARE\WOW6432Node\ASUS',
   'HKCU:\SOFTWARE\ASUS'
 )
+
+$userSidRoots = @(Get-ChildItem Registry::HKEY_USERS -ErrorAction SilentlyContinue | Where-Object {
+  $_.PSChildName -match '^S-1-5-21-' -and $_.PSChildName -notmatch '_Classes$'
+} | Select-Object -ExpandProperty PSChildName)
+
+foreach ($sid in $userSidRoots) {
+  $regKeys += "Registry::HKEY_USERS\\$sid\\Software\\ASUS"
+}
+
+$regKeys = $regKeys | Sort-Object -Unique
+
 foreach ($rk in $regKeys) {
   if (Test-Path $rk) {
     Try-Run "Delete $rk" { Remove-Item -Path $rk -Recurse -Force }
@@ -187,7 +256,12 @@ $runHives = @(
   'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run',
   'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run'
 )
-$rx = '(?i)(Armoury|Crate|Aura|Aac|MyASUS|Asus(Update|Cert|Link|OSD|Switch|Optimization))'
+foreach ($sid in $userSidRoots) {
+  $runHives += "Registry::HKEY_USERS\\$sid\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
+}
+
+$runHives = $runHives | Sort-Object -Unique
+$rx = '(?i)(Armoury|Crate|Aura|Aac|MyASUS|Asus(Update|Cert|Link|OSD|Switch|Optimization)|ROG|ASUSTeK)'
 foreach ($h in $runHives) {
   if (Test-Path $h) {
     $props = Get-ItemProperty -Path $h -ErrorAction SilentlyContinue
