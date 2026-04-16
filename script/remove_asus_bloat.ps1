@@ -1,5 +1,5 @@
 # =========================================================
-# remove_asus_bloat.ps1 v1.0.6
+# remove_asus_bloat.ps1 v1.0.7
 # Created by Vikindor (https://vikindor.github.io/)
 # Clean ASUS software remnants (Armoury Crate, ASUS Update, Link, Aura/AAC, MyASUS, etc.)
 # - Kill processes
@@ -205,7 +205,7 @@ foreach ($h in $runHives) {
 if ($script:HadErrors) {
   Write-Host "`nCompleted with errors. Review the messages above before assuming ASUS software was fully removed." -ForegroundColor Yellow
 } else {
-  Write-Host "`nBase cleanup completed successfully." -ForegroundColor Green
+  Write-Host "`nBase cleanup completed successfully. Optional cleanup is available below." -ForegroundColor Green
 }
 
 function Invoke-PackageCacheCleanup {
@@ -297,7 +297,6 @@ function Exit-WithSummary {
   exit 0
 }
 
-Write-Host "`nOptional cleanup is available below." -ForegroundColor Cyan
 Write-Host "Choose optional cleanup or press 0 to exit." -ForegroundColor Cyan
 
 while ($true) {
